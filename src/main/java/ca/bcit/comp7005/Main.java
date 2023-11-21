@@ -5,6 +5,7 @@ import org.apache.commons.cli.*;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.security.NoSuchAlgorithmException;
 
 import static java.lang.System.exit;
 
@@ -30,9 +31,10 @@ public class Main {
         } catch (ParseException e) {
             exitWithError("Parsing failed", e);
         } catch (IOException e) {
-            exitWithError("Error sending message", e);
+            exitWithError("IOException", e);
+        } catch (NoSuchAlgorithmException e) {
+            exitWithError("Unable to generate initial sequence number", e);
         }
-
     }
 
     /**
@@ -42,7 +44,7 @@ public class Main {
      * @param exception - exception that caused the error.
      */
     private static void exitWithError(String message, Exception exception) {
+        System.err.println(message + ": " + exception.getMessage());
         exit(1);
-        throw new RuntimeException(message, exception);
     }
 }

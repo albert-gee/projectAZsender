@@ -3,6 +3,7 @@ package ca.bcit.comp7005;
 import org.apache.commons.cli.*;
 
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 
 import static java.lang.System.exit;
@@ -47,7 +48,7 @@ public class SenderCliCommand {
      *
      * @throws IOException - if an I/O error occurs.
      */
-    public void execute() throws IOException {
+    public void execute() throws IOException, NoSuchAlgorithmException {
         // Display help message and exit if the "help" option is present
         if (enteredCommandLine.hasOption(HELP_OPTION) ||
                 !enteredCommandLine.hasOption(PORT_OPTION) ||
@@ -88,15 +89,18 @@ public class SenderCliCommand {
      * @param port    - the receiver's port.
      * @throws IOException - if an I/O error occurs.
      */
-    private void runDatagramSender(String address, int port) throws IOException {
+    private void runDatagramSender(String address, int port) throws IOException, NoSuchAlgorithmException {
         // Accept messages from the user and send them to the receiver
         DatagramSender datagramSender = DatagramSender.build();
+        datagramSender.connectToReceiver(address, port);
+
         Scanner sc = new Scanner(System.in);
         String userInputMessage;
         do {
             System.out.println("\nEnter a message to send or \"" + QUIT_COMMAND + "\" to quit: ");
             userInputMessage = sc.nextLine();
-            datagramSender.sendMessage(address, port, userInputMessage);
+
+            datagramSender.sendMessageReliably(userInputMessage.getBytes());
         } while (!userInputMessage.equals(QUIT_COMMAND));
 
         datagramSender.close();
