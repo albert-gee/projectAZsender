@@ -20,27 +20,29 @@ public class SenderCliCommand {
     private static final String HELP_HEADER = "Sender sends messages to a receiver.";
     private static final String HELP_FOOTER = "";
 
-    private static final Option ADDRESS_OPTION;
-    private static final Option HELP_OPTION;
-    private static final Option PORT_OPTION;
     private static final Options CLI_OPTIONS;
+    private static final Option RECEIVER_ADDRESS_OPTION;
+    private static final Option HELP_OPTION;
+    private static final Option RECEIVER_PORT_OPTION;
 
     static {
         // Set up command line options
         CLI_OPTIONS = new Options();
-        ADDRESS_OPTION = new Option("a", "address", true, "IP address of the receiver");
-        CLI_OPTIONS.addOption(ADDRESS_OPTION);
+        RECEIVER_ADDRESS_OPTION = new Option("a", "address", true, "IP address of the receiver");
+        CLI_OPTIONS.addOption(RECEIVER_ADDRESS_OPTION);
         HELP_OPTION = new Option("h", "help", false, "Help");
         CLI_OPTIONS.addOption(HELP_OPTION);
-        PORT_OPTION = new Option("p", "port", true, "Port of the receiver");
-        CLI_OPTIONS.addOption(PORT_OPTION);
+        RECEIVER_PORT_OPTION = new Option("p", "port", true, "Port of the receiver");
+        CLI_OPTIONS.addOption(RECEIVER_PORT_OPTION);
     }
 
     private final CommandLine enteredCommandLine;
 
     public SenderCliCommand(String[] args) throws ParseException, IOException {
-        // Parse the command line options entered by the user
-        enteredCommandLine = parseCommandLine(args);
+        // Parse the arguments from CLI and convert them to CommandLine object using Apache Commons CLI library.
+        // The CommandLine object is used to retrieve the entered options and their values.
+        CommandLineParser parser = new DefaultParser();
+        enteredCommandLine = parser.parse(CLI_OPTIONS, args);
     }
 
     /**
@@ -51,26 +53,13 @@ public class SenderCliCommand {
     public void execute() throws IOException, NoSuchAlgorithmException {
         // Display help message and exit if the "help" option is present
         if (enteredCommandLine.hasOption(HELP_OPTION) ||
-                !enteredCommandLine.hasOption(PORT_OPTION) ||
-                !enteredCommandLine.hasOption(ADDRESS_OPTION)) {
+                !enteredCommandLine.hasOption(RECEIVER_PORT_OPTION) ||
+                !enteredCommandLine.hasOption(RECEIVER_ADDRESS_OPTION)) {
             printHelp();
             exit(0);
         } else {
-            runDatagramSender(enteredCommandLine.getOptionValue(ADDRESS_OPTION), Integer.parseInt(enteredCommandLine.getOptionValue(PORT_OPTION)));
+            runDatagramSender(enteredCommandLine.getOptionValue(RECEIVER_ADDRESS_OPTION), Integer.parseInt(enteredCommandLine.getOptionValue(RECEIVER_PORT_OPTION)));
         }
-    }
-
-    /**
-     * Parses arguments and converts them to a CommandLine object.
-     *
-     * @param args - arguments entered by the user.
-     * @return a CommandLine object.
-     * @throws ParseException - if an exception occurred while parsing the command line tokens.
-     */
-    private static CommandLine parseCommandLine(String[] args) throws ParseException {
-        // Create CLI parser
-        CommandLineParser parser = new DefaultParser();
-        return parser.parse(CLI_OPTIONS, args);
     }
 
     /**
