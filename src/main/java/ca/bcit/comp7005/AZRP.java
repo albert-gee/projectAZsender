@@ -1,6 +1,12 @@
 package ca.bcit.comp7005;
 
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.zip.CRC32;
 
 /**
@@ -60,7 +66,7 @@ public class AZRP {
      * @return the SYN packet.
      */
     public static AZRP syn(int initialSequenceNumber) {
-        boolean[] flags = new boolean[]{true, false, false, false};
+        boolean[] flags = new boolean[]{true, false, false};
         return new AZRP(new byte[0], initialSequenceNumber, 0, calculateChecksum(new byte[0]), flags);
     }
 
@@ -71,7 +77,7 @@ public class AZRP {
      * @return the SYN-ACK packet.
      */
     public static AZRP synAck(int sequenceNumber, int acknowledgementNumber) {
-        boolean[] flags = new boolean[]{true, true, false, false};
+        boolean[] flags = new boolean[]{true, true, false};
         return new AZRP(new byte[0], sequenceNumber, acknowledgementNumber, calculateChecksum(new byte[0]), flags);
     }
 
@@ -82,18 +88,19 @@ public class AZRP {
      * @return the ACK packet.
      */
     public static AZRP ack(int sequenceNumber, int acknowledgementNumber) {
-        boolean[] flags = new boolean[]{false, true, false, false};
+        boolean[] flags = new boolean[]{false, true, false};
         return new AZRP(new byte[0], sequenceNumber, acknowledgementNumber, calculateChecksum(new byte[0]), flags);
     }
 
     /**
      * Creates a FIN packet.
      * @param sequenceNumber - the sequence number.
+     * @param acknowledgementNumber - the acknowledgement number.
      * @return the FIN packet.
      */
-    public static AZRP fin(int sequenceNumber) {
-        boolean[] flags = new boolean[]{false, false, true, false};
-        return new AZRP(new byte[0], sequenceNumber, 0, calculateChecksum(new byte[0]), flags);
+    public static AZRP fin(int sequenceNumber, int acknowledgementNumber) {
+        boolean[] flags = new boolean[]{false, false, true};
+        return new AZRP(new byte[0], sequenceNumber, acknowledgementNumber, calculateChecksum(new byte[0]), flags);
     }
 
     /**
@@ -157,6 +164,38 @@ public class AZRP {
     }
 
 
+
+    /**
+     * Generates a secure initial sequence number.
+     *
+     * @return a secure sequence number.
+     * @throws NoSuchAlgorithmException - if no Provider supports a SecureRandomSpi implementation for the specified algorithm.
+     */
+    public static int generateInitialSequenceNumber() throws NoSuchAlgorithmException {
+        SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+
+        // Choose the number of bits for the random integer (e.g., 32 bits)
+        int numBits = 32;
+
+        // Calculate the byte length based on the number of bits
+        int byteLength = (numBits + 7) / 8;
+
+        // Generate a random byte array
+        byte[] randomBytes = new byte[byteLength];
+        secureRandom.nextBytes(randomBytes);
+
+        // Convert the random bytes to an integer
+        int secureSequenceNumber = 0;
+        for (int i = 0; i < byteLength; i++) {
+            secureSequenceNumber = (secureSequenceNumber << 8) | (randomBytes[i] & 0xFF);
+        }
+
+        // Ensure the generated integer is non-negative
+        secureSequenceNumber &= Integer.MAX_VALUE;
+
+        return secureSequenceNumber;
+    }
+
     /**
      * Validates the checksum of the data.
      * @return true if the checksum is valid, false otherwise.
@@ -205,14 +244,55 @@ public class AZRP {
         return data;
     }
 
+    public boolean isACK() {
+        return flags[1];
+    }
+
+    public boolean isSynAck() {
+        return flags[0] && flags[1];
+    }
+
+    public boolean isFIN() {
+        return flags[2];
+    }
+
+    /**
+     * Sends the packet to the receiver.
+     * @param datagramSocket - the socket to send the packet.
+     * @param receiverAddress - the address of the receiver.
+     * @param receiverPort - the port of the receiver.
+     * @throws IOException - if an I/O error occurs.
+     */
+    public void send(DatagramSocket datagramSocket, InetAddress receiverAddress, int receiverPort) throws IOException {
+        System.out.println("Sending AZRP packet: " + this);
+        byte[] data = this.toBytes();
+        DatagramPacket packet = new DatagramPacket(
+                data, data.length, receiverAddress, receiverPort
+        );
+
+        try {
+            datagramSocket.send(packet);
+        } catch (IOException e) {
+            throw new IOException("Unable to send AZRP packet", e);
+        }
+    }
+
+    public static AZRP receive(DatagramSocket datagramSocket) throws IOException {
+        System.out.println("Receiving AZRP packet");
+        byte[] packetBuffer = new byte[AZRP.MAXIMUM_PACKET_SIZE_IN_BYTES];
+        DatagramPacket packet = new DatagramPacket(packetBuffer, packetBuffer.length);
+        datagramSocket.receive(packet);
+        return AZRP.fromBytes(packet.getData());
+    }
+
     @Override
     public String toString() {
         return "AZRP{" +
-                "flags: SYN=" + flags[0] + ", ACK=" + flags[1] + ", FIN=" + flags[2] + ", RST=" + flags[3] +
-                ", sequenceNumber=" + sequenceNumber +
-                ", acknowledgementNumber=" + acknowledgementNumber +
-                ", checksum=" + checksum +
-                ", data=" + new String(data) +
-                '}';
+                "\nflags: SYN=" + flags[0] + ", ACK=" + flags[1] + ", FIN=" + flags[2] +
+                "\n, sequenceNumber=" + sequenceNumber +
+                "\n, acknowledgementNumber=" + acknowledgementNumber +
+                "\n, checksum=" + checksum +
+                "\n, data=" + new String(data) +
+                "\n}\n";
     }
 }
