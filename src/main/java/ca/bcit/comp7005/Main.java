@@ -1,9 +1,10 @@
 package ca.bcit.comp7005;
 
 import org.apache.commons.cli.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
@@ -15,6 +16,8 @@ import static java.lang.System.exit;
  * This program sends messages from command line to a receiver.
  */
 public class Main {
+
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
     private static final String QUIT_COMMAND = "quit";
     private static final String HELP_HEADER = "Sender sends messages to a receiver.";
     private static final String HELP_FOOTER = "";
@@ -63,29 +66,22 @@ public class Main {
                 int receiverPort = Integer.parseInt(enteredCommandLine.getOptionValue(RECEIVER_PORT_OPTION.getOpt()));
 
                 // Accept messages from the user and send them to the receiver
-                AzrpSender azrpSender = new AzrpSender(); // Create a DatagramSender
+                Sender sender = new Sender(); // Create a DatagramSender
 
                 Scanner sc = new Scanner(System.in);
                 String userInputMessage;
                 do {
                     System.out.println("\nEnter a message to send or \"" + QUIT_COMMAND + "\" to quit: ");
                     userInputMessage = sc.nextLine();
+                    byte[] userInputMessageBytes = userInputMessage.getBytes();
+                    logger.debug("Sending message (" + userInputMessageBytes.length + " bytes): " + userInputMessage);
 
-
-                    // Connect to the receiver
-                    azrpSender.connectToReceiver(receiverPort, InetAddress.getByName(receiverAddress));
-
-                    azrpSender.sendMessage(userInputMessage.getBytes());
-
-                    azrpSender.disconnectFromReceiver();
-
-
+                    sender.sendMessage(receiverPort, receiverAddress, userInputMessageBytes);
                 } while (!userInputMessage.equals(QUIT_COMMAND));
 
             }
 
         } catch (SocketException e) {
-            e.printStackTrace();
             exitWithError("Error creating DatagramSender", e);
         } catch (UnknownHostException e) {
             exitWithError("Error creating DatagramSender - Unknown host", e);

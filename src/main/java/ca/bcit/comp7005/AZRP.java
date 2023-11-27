@@ -1,9 +1,5 @@
 package ca.bcit.comp7005;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -14,28 +10,28 @@ import java.util.zip.CRC32;
  */
 public class AZRP {
 
-    // 16 bytes = 4 integer fields 4 bytes each: sequence number, acknowledgment number, checksum, dataLength
-    // 4 bytes = 1 array of 4 boolean values: flags
+    // 16 bytes = 4 integer fields 4 bytes each: sequence number, length, checksum
+    // 4 bytes = array of flags is converted to an integer
     // 20 bytes total
-    public static final int PACKET_HEADER_SIZE_IN_BYTES = 20;
+    public static final int PACKET_HEADER_SIZE_IN_BYTES = 19;
 
-    public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 30;
+    public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 50;
 
     // The flags are used to indicate the type of the packet:
     // 0 - SYN
     // 1 - ACK
-    // 2 - FIN
     private final boolean[] flags;
 
     private final int sequenceNumber;
 
-    private final int acknowledgementNumber;
+    private final int length;
 
     private final int checksum;
 
     private final byte[] data;
 
-    public AZRP(byte[] data, int sequenceNumber, int acknowledgementNumber, int checksum, boolean[] flags) {
+    public AZRP(byte[] data, int sequenceNumber, int length, int checksum, boolean[] flags) {
+
         // Check if the packet size (header + data) is not bigger than the maximum packet size
         if (PACKET_HEADER_SIZE_IN_BYTES + data.length > MAXIMUM_PACKET_SIZE_IN_BYTES) {
             throw new IllegalArgumentException("The packet size is too big.");
@@ -43,68 +39,37 @@ public class AZRP {
 
         this.flags = flags;
         this.sequenceNumber = sequenceNumber;
-        this.acknowledgementNumber = acknowledgementNumber;
+        this.length = length;
         this.checksum = checksum;
         this.data = data;
     }
 
+    public AZRP(byte[] data, int sequenceNumber, int length, boolean[] flags) {
+        this(
+                data,
+                sequenceNumber,
+                length,
+                (data.length > 0) ? calculateChecksum(data) : 0,
+                flags);
+    }
+
     /**
      * Creates a data packet.
-     * @param data - the data.
+     *
+     * @param data           - the data.
      * @param sequenceNumber - the sequence number.
-     * @param acknowledgementNumber - the acknowledgement number.
+     * @param length         - the sequence number.
      * @return the data packet.
      */
-    public static AZRP data(byte[] data, int sequenceNumber, int acknowledgementNumber) {
+    public static AZRP data(byte[] data, int sequenceNumber, int length) {
         boolean[] flags = new boolean[]{false, false, false, false};
-        return new AZRP(data, sequenceNumber, acknowledgementNumber, calculateChecksum(data), flags);
+        return new AZRP(data, sequenceNumber, length, calculateChecksum(data), flags);
     }
 
-    /**
-     * Creates a SYN packet.
-     * @param initialSequenceNumber - the initial sequence number.
-     * @return the SYN packet.
-     */
-    public static AZRP syn(int initialSequenceNumber) {
-        boolean[] flags = new boolean[]{true, false, false};
-        return new AZRP(new byte[0], initialSequenceNumber, 0, calculateChecksum(new byte[0]), flags);
-    }
-
-    /**
-     * Creates a SYN-ACK packet.
-     * @param sequenceNumber - the sequence number.
-     * @param acknowledgementNumber - the acknowledgement number.
-     * @return the SYN-ACK packet.
-     */
-    public static AZRP synAck(int sequenceNumber, int acknowledgementNumber) {
-        boolean[] flags = new boolean[]{true, true, false};
-        return new AZRP(new byte[0], sequenceNumber, acknowledgementNumber, calculateChecksum(new byte[0]), flags);
-    }
-
-    /**
-     * Creates an ACK packet.
-     * @param sequenceNumber - the sequence number.
-     * @param acknowledgementNumber - the acknowledgement number.
-     * @return the ACK packet.
-     */
-    public static AZRP ack(int sequenceNumber, int acknowledgementNumber) {
-        boolean[] flags = new boolean[]{false, true, false};
-        return new AZRP(new byte[0], sequenceNumber, acknowledgementNumber, calculateChecksum(new byte[0]), flags);
-    }
-
-    /**
-     * Creates a FIN packet.
-     * @param sequenceNumber - the sequence number.
-     * @param acknowledgementNumber - the acknowledgement number.
-     * @return the FIN packet.
-     */
-    public static AZRP fin(int sequenceNumber, int acknowledgementNumber) {
-        boolean[] flags = new boolean[]{false, false, true};
-        return new AZRP(new byte[0], sequenceNumber, acknowledgementNumber, calculateChecksum(new byte[0]), flags);
-    }
 
     /**
      * Deserializes AZRP packet from bytes.
+     *
      * @param data - array of bytes.
      * @return the AZRP packet.
      */
@@ -112,10 +77,9 @@ public class AZRP {
         ByteBuffer buffer = ByteBuffer.wrap(data);
         int flagsInt = buffer.getInt();
         int sequenceNumber = buffer.getInt();
-        int acknowledgementNumber = buffer.getInt();
-        int dataLength = buffer.getInt();
+        int length = buffer.getInt();
         int checksum = buffer.getInt();
-        byte[] payload = new byte[dataLength];
+        byte[] payload = new byte[flagsInt == 0 ? length : 0]; // Set payload length to 0 if it's a SYN packet
         buffer.get(payload);
 
         // Convert the flags integer to an array of booleans
@@ -125,11 +89,12 @@ public class AZRP {
             flags[i] = (flagsInt & (1 << i)) != 0;
         }
 
-        return new AZRP(payload, sequenceNumber, acknowledgementNumber, checksum, flags);
+        return new AZRP(payload, sequenceNumber, length, checksum, flags);
     }
 
     /**
      * Serializes the AZRP packet to bytes.
+     *
      * @return the array of bytes.
      */
     public byte[] toBytes() {
@@ -145,8 +110,7 @@ public class AZRP {
         ByteBuffer buffer = ByteBuffer.allocate(PACKET_HEADER_SIZE_IN_BYTES + data.length);
         buffer.putInt(flagsToInt);
         buffer.putInt(sequenceNumber);
-        buffer.putInt(acknowledgementNumber);
-        buffer.putInt(data.length);
+        buffer.putInt(length);
         buffer.putInt(calculateChecksum(data));
         buffer.put(data);
         return buffer.array();
@@ -154,6 +118,7 @@ public class AZRP {
 
     /**
      * Calculates the checksum of the data.
+     *
      * @param data - the data to calculate the checksum.
      * @return the checksum of the data.
      */
@@ -162,8 +127,6 @@ public class AZRP {
         crc32.update(data);
         return (int) crc32.getValue();
     }
-
-
 
     /**
      * Generates a secure initial sequence number.
@@ -198,14 +161,16 @@ public class AZRP {
 
     /**
      * Validates the checksum of the data.
+     *
      * @return true if the checksum is valid, false otherwise.
      */
-    public boolean validateChecksum() {
+    public boolean isChecksumValid() {
         return calculateChecksum(data) == checksum;
     }
 
-/**
+    /**
      * Gets the sequence number.
+     *
      * @return the sequence number.
      */
     public boolean[] getFlags() {
@@ -214,6 +179,7 @@ public class AZRP {
 
     /**
      * Gets the sequence number.
+     *
      * @return the sequence number.
      */
     public int getSequenceNumber() {
@@ -221,76 +187,49 @@ public class AZRP {
     }
 
     /**
-     * Gets the acknowledgement number.
-     * @return the acknowledgement number.
-     */
-    public int getAcknowledgementNumber() {
-        return acknowledgementNumber;
-    }
-
-    /**
      * Gets the checksum.
+     *
      * @return the checksum.
      */
     public int getChecksum() {
         return checksum;
     }
 
+    public int getLength() {
+        return length;
+    }
+
     /**
      * Gets the data.
+     *
      * @return the data.
      */
     public byte[] getData() {
         return data;
     }
 
+    public boolean isSYN() {
+        return flags[0];
+    }
+
     public boolean isACK() {
         return flags[1];
+    }
+
+    public boolean isData() {
+        return !flags[0] && !flags[1] && !flags[2];
     }
 
     public boolean isSynAck() {
         return flags[0] && flags[1];
     }
 
-    public boolean isFIN() {
-        return flags[2];
-    }
-
-    /**
-     * Sends the packet to the receiver.
-     * @param datagramSocket - the socket to send the packet.
-     * @param receiverAddress - the address of the receiver.
-     * @param receiverPort - the port of the receiver.
-     * @throws IOException - if an I/O error occurs.
-     */
-    public void send(DatagramSocket datagramSocket, InetAddress receiverAddress, int receiverPort) throws IOException {
-        System.out.println("Sending AZRP packet: " + this);
-        byte[] data = this.toBytes();
-        DatagramPacket packet = new DatagramPacket(
-                data, data.length, receiverAddress, receiverPort
-        );
-
-        try {
-            datagramSocket.send(packet);
-        } catch (IOException e) {
-            throw new IOException("Unable to send AZRP packet", e);
-        }
-    }
-
-    public static AZRP receive(DatagramSocket datagramSocket) throws IOException {
-        System.out.println("Receiving AZRP packet");
-        byte[] packetBuffer = new byte[AZRP.MAXIMUM_PACKET_SIZE_IN_BYTES];
-        DatagramPacket packet = new DatagramPacket(packetBuffer, packetBuffer.length);
-        datagramSocket.receive(packet);
-        return AZRP.fromBytes(packet.getData());
-    }
-
     @Override
     public String toString() {
         return "AZRP{" +
-                "\nflags: SYN=" + flags[0] + ", ACK=" + flags[1] + ", FIN=" + flags[2] +
+                "\nflags: SYN=" + flags[0] + ", ACK=" + flags[1] +
+                "\n, length=" + length +
                 "\n, sequenceNumber=" + sequenceNumber +
-                "\n, acknowledgementNumber=" + acknowledgementNumber +
                 "\n, checksum=" + checksum +
                 "\n, data=" + new String(data) +
                 "\n}\n";
