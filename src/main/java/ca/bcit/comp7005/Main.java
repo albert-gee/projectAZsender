@@ -65,9 +65,9 @@ public class Main {
                 String receiverAddress = enteredCommandLine.getOptionValue(RECEIVER_ADDRESS_OPTION.getOpt());
                 int receiverPort = Integer.parseInt(enteredCommandLine.getOptionValue(RECEIVER_PORT_OPTION.getOpt()));
 
-                // Accept messages from the user and send them to the receiver
-                Sender sender = new Sender(); // Create a DatagramSender
+                Sender sender = new Sender(receiverPort, receiverAddress); // Create a DatagramSender
 
+                // Accept messages from the user
                 Scanner sc = new Scanner(System.in);
                 String userInputMessage;
                 do {
@@ -76,7 +76,8 @@ public class Main {
                     byte[] userInputMessageBytes = userInputMessage.getBytes();
                     logger.debug("Sending message (" + userInputMessageBytes.length + " bytes): " + userInputMessage);
 
-                    sender.sendMessage(receiverPort, receiverAddress, userInputMessageBytes);
+                    // Send the message to the receiver
+                    sender.sendMessage(userInputMessageBytes);
                 } while (!userInputMessage.equals(QUIT_COMMAND));
 
             }
@@ -91,6 +92,8 @@ public class Main {
             exitWithError("IOException", e);
         } catch (NoSuchAlgorithmException e) {
             exitWithError("Unable to generate initial sequence number", e);
+        } catch (Exception e) {
+            exitWithError("Error", e);
         }
     }
 

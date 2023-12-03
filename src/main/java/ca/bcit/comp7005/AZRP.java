@@ -15,7 +15,7 @@ public class AZRP {
     // 20 bytes total
     public static final int PACKET_HEADER_SIZE_IN_BYTES = 19;
 
-    public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 50;
+    public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 30;
 
     // The flags are used to indicate the type of the packet:
     // 0 - SYN
@@ -128,6 +128,18 @@ public class AZRP {
         return (int) crc32.getValue();
     }
 
+    public static AZRP generateSynPacket(final int wholeMessageDataLength) throws NoSuchAlgorithmException {
+        final int initialSequenceNumber = AZRP.generateInitialSequenceNumber(); // The sequence starts from this number
+        final boolean[] synFlags = new boolean[]{true, false}; // SYN, ACK
+
+        return new AZRP(new byte[0], initialSequenceNumber, wholeMessageDataLength, synFlags);
+    }
+
+    public static AZRP generateSynAckPacket(final AZRP synPacket) {
+        final boolean[] synAckFlags = new boolean[]{true, true}; // SYN, ACK
+        return new AZRP(new byte[0], synPacket.getSequenceNumber(), synPacket.getLength(), synAckFlags);
+    }
+
     /**
      * Generates a secure initial sequence number.
      *
@@ -173,26 +185,8 @@ public class AZRP {
      *
      * @return the sequence number.
      */
-    public boolean[] getFlags() {
-        return flags;
-    }
-
-    /**
-     * Gets the sequence number.
-     *
-     * @return the sequence number.
-     */
     public int getSequenceNumber() {
         return sequenceNumber;
-    }
-
-    /**
-     * Gets the checksum.
-     *
-     * @return the checksum.
-     */
-    public int getChecksum() {
-        return checksum;
     }
 
     public int getLength() {
@@ -216,12 +210,16 @@ public class AZRP {
         return flags[1];
     }
 
-    public boolean isData() {
-        return !flags[0] && !flags[1] && !flags[2];
+    public boolean isValidData() {
+        return !isSYN() && !isACK() && isChecksumValid();
     }
 
-    public boolean isSynAck() {
-        return flags[0] && flags[1];
+    public boolean isValidSyn() {
+        return isSYN() && !isACK() && isChecksumValid();
+    }
+
+    public boolean isValidSynAck(AZRP synAzrp) {
+        return isSYN() && isACK() && getSequenceNumber() == synAzrp.getSequenceNumber() && isChecksumValid();
     }
 
     @Override
