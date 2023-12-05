@@ -27,7 +27,7 @@ public class Sender {
      */
     public Sender(final int receiverPort, final String receiverAddress) throws IOException {
 
-        this.datagramSocket = new DatagramSocket();
+        this.datagramSocket = new DatagramSocket(56723);
         // Set the timeout for receiving acknowledgement packets
         this.datagramSocket.setSoTimeout(TIMEOUT_MILLISECONDS);
         logger.info("UDP socket created on port " + datagramSocket.getLocalPort());
@@ -47,18 +47,13 @@ public class Sender {
      */
     public void sendMessage(byte[] wholeMessageData) throws IOException, NoSuchAlgorithmException {
 
-        // Generate a SYN packet and send to the receiver
-        final AZRP synAzrp = AZRP.generateSynPacket(wholeMessageData.length);
-        AZRP synAckAzrp = this.sendSynAzrp(synAzrp);
-        logger.debug("Sent a SYN packet with sequence number " + synAzrp.getSequenceNumber() + " and length " + synAzrp.getLength());
+        AZRP synAckAzrp = this.synchronise(wholeMessageData.length);
 
         // If the receiver responded with a SYN-ACK packet, send the data packets
         if (synAckAzrp != null) {
-            logger.debug("Received a SYN-ACK packet with sequence number " + synAckAzrp.getSequenceNumber() + " and length " + synAckAzrp.getLength());
 
             // Split the message into AZRP packets.
-            List<AZRP> buffer = convertMessageToAzrps(wholeMessageData, synAzrp.getSequenceNumber());
-            Collections.shuffle(buffer);
+            List<AZRP> buffer = convertMessageToAzrps(wholeMessageData, synAckAzrp.getSequenceNumber());
 
             for (AZRP dataAzrp : buffer) {
                 AZRP ackAzrp = sendDataAzrp(dataAzrp);
@@ -80,28 +75,34 @@ public class Sender {
     }
 
 
-    private AZRP sendSynAzrp(AZRP synAzrp) {
-        AZRP synAckAzrp = null;
+    private AZRP synchronise(int wholeMessageLength) throws NoSuchAlgorithmException {
 
+        // Generate a SYN packet and send to the receiver
+        final AZRP synAzrp = AZRP.generateSynPacket(wholeMessageLength);
+
+        // Make MAX_RESEND_ATTEMPTS of attempts to send a SYN packet and receive a SYN-ACK packet
+        AZRP synAckAzrp = null;
         int attempts = 0;
         while (attempts < MAX_RESEND_ATTEMPTS) {
 
             try {
-                // Try to send a datagram packet containing the dataAzrp
+                // Try to send a datagram packet containing the SYN packet
                 this.sendDatagram(synAzrp.toBytes());
-                logger.debug("Sent a SYN AZRP packet at " + synAzrp.getSequenceNumber());
+                logger.debug("Sent a SYN packet with sequence number " + synAzrp.getSequenceNumber() + " and length " + synAzrp.getLength());
 
                 // Try to receive a SYN-ACK packet
-                // Receive a datagram packet
-                DatagramPacket receiveDatagram = receiveDatagram();
-                // Validate that the AZRP packet in the datagram is an ACK packet with the correct sequence number
-                AZRP receivedAzrp = AZRP.fromBytes(receiveDatagram.getData());
+                // Receive a datagram and convert it to an AZRP packet
+                DatagramPacket receivedDatagram = receiveDatagram();
+                AZRP receivedAzrp = AZRP.fromBytes(receivedDatagram.getData());
+                logger.debug("Received a packet with sequence number " + receivedAzrp.getSequenceNumber() + " and length " + receivedAzrp.getLength());
+
+                // Validate that the AZRP packet is an ACK packet with the correct sequence number
                 if (receivedAzrp.isValidSynAck(synAzrp)) {
-                    logger.debug("Received a SYN-ACK packet with sequence number " + receivedAzrp.getSequenceNumber() + " and length " + receivedAzrp.getLength());
+                    logger.debug("Received datagram contains a valid SYN-ACK packet");
                     synAckAzrp = receivedAzrp;
                     break;
                 } else {
-                    logger.debug("Received an invalid SYN-ACK packet");
+                    logger.debug("Received datagram contains an invalid SYN-ACK packet");
                 }
             } catch (SocketTimeoutException e) {
                 logger.debug("Timeout for acknowledgement packet reached");
@@ -114,6 +115,7 @@ public class Sender {
 
         return synAckAzrp;
     }
+
     public AZRP sendDataAzrp(AZRP azrpPacket) {
         AZRP ackAzrp = null;
 
@@ -123,7 +125,7 @@ public class Sender {
             try {
                 // Try to send a datagram packet containing the dataAzrp
                 this.sendDatagram(azrpPacket.toBytes());
-                logger.debug("Sent an AZRP packet at " + azrpPacket.getSequenceNumber() + ": " + new String(azrpPacket.getData()));
+                logger.debug("Sent an AZRP data packet at " + azrpPacket.getSequenceNumber() + ": " + new String(azrpPacket.getData()));
 
                 // Try to receive an ACK packet
                 // Receive a datagram packet
@@ -185,9 +187,11 @@ public class Sender {
         } else {
             // Send the packet to the receiver
             final boolean[] dataFlags = new boolean[]{false, false}; // SYN, ACK
-            AZRP dataAzrp = new AZRP(wholeMessageData, 0, wholeMessageData.length, dataFlags);
+            AZRP dataAzrp = new AZRP(wholeMessageData, initialSequenceNumber, wholeMessageData.length, dataFlags);
             buffer.add(dataAzrp);
         }
+        System.out.println("Converted the message to the following packets:");
+        System.out.println(buffer);
         return buffer;
     }
 
