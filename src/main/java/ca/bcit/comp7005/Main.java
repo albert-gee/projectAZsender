@@ -5,11 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 
@@ -30,6 +26,11 @@ public class Main {
     private static final Option HELP_OPTION;
     private static final Option RECEIVER_PORT_OPTION;
 
+    private static final int MAX_RESEND_ATTEMPTS = 3;
+    private static final int SENDER_PORT = 56723;
+    private static final int TIMEOUT_MILLISECONDS = 5000;
+
+
     static {
         // Set up command line options
         CLI_OPTIONS = new Options();
@@ -42,8 +43,8 @@ public class Main {
     }
 
     /**
-     * The main method of the program builds a sender and sends messages to a receiver.
-     * The user can quit the receiver by typing "quit_receiver" and the sender by typing "quit".
+     * The main method parses the arguments from CLI and runs the sender or the help page.
+     * The user can quit the receiver by typing "quit".
      */
     public static void main(String[] args) {
 
@@ -59,53 +60,55 @@ public class Main {
                     !enteredCommandLine.hasOption(RECEIVER_PORT_OPTION) ||
                     !enteredCommandLine.hasOption(RECEIVER_ADDRESS_OPTION)) {
 
-                // automatically generate the help statement
-                HelpFormatter formatter = new HelpFormatter();
-                formatter.printHelp("Main -t 1000", HELP_HEADER, CLI_OPTIONS, HELP_FOOTER);
+                // Display help message
+                displayHelp();
             } else {
 
                 // Get the receiver's address and port from the entered options
                 String receiverAddress = enteredCommandLine.getOptionValue(RECEIVER_ADDRESS_OPTION.getOpt());
                 int receiverPort = Integer.parseInt(enteredCommandLine.getOptionValue(RECEIVER_PORT_OPTION.getOpt()));
 
-                Sender sender = new Sender(receiverPort, receiverAddress); // Create a DatagramSender
-
-                // Accept messages from the user
-                Scanner sc = new Scanner(System.in);
-                String userInputMessage;
-                do {
-                    System.out.println("\nEnter a message to send or \"" + QUIT_COMMAND + "\" to quit: ");
-                    userInputMessage = sc.nextLine();
-                    byte[] userInputMessageBytes = userInputMessage.getBytes();
-                    sender.sendMessage(userInputMessageBytes, "tex".getBytes());
-
-//                    // Send file
-//                    String filePath = "/home/albert/Downloads/nicomachaen.mb.txt"; // Replace with the actual path to your file
-//
-//                    try {
-//                        Path path = Paths.get(filePath);
-//                        byte[] fileBytes = Files.readAllBytes(path);
-//                        sender.sendMessage(fileBytes, "txt".getBytes());
-//
-//                    } catch (IOException e) {
-//                        e.printStackTrace();
-//                    }
-                } while (!userInputMessage.equals(QUIT_COMMAND));
-
+                // Run the sender
+                runSender(receiverAddress, receiverPort);
             }
-
-        } catch (SocketException e) {
-            exitWithError("Error creating DatagramSender", e);
-        } catch (UnknownHostException e) {
-            exitWithError("Error creating DatagramSender - Unknown host", e);
         } catch (ParseException e) {
             exitWithError("Parsing failed", e);
-        } catch (IOException e) {
-            exitWithError("IOException", e);
-        } catch (NoSuchAlgorithmException e) {
-            exitWithError("Unable to generate initial sequence number", e);
         } catch (Exception e) {
             exitWithError("Error", e);
+        }
+    }
+
+    /**
+     * Displays help message.
+     */
+    private static void displayHelp() {
+        HelpFormatter formatter = new HelpFormatter();
+        formatter.printHelp("Sender", HELP_HEADER, CLI_OPTIONS, HELP_FOOTER, true);
+    }
+
+    /**
+     * Runs the sender.
+     *
+     * @param receiverAddress - the address of the receiver.
+     * @param receiverPort    - the port of the receiver.
+     */
+    private static void runSender(String receiverAddress, int receiverPort) {
+        try {
+            Sender sender = new Sender(SENDER_PORT, MAX_RESEND_ATTEMPTS, TIMEOUT_MILLISECONDS); // Create a DatagramSender
+
+            // Accept input from the user until the user types "quit"
+            Scanner sc = new Scanner(System.in);
+            String userInput;
+            do {
+                userInput = sc.nextLine();
+                sender.sendUserInput(userInput, receiverPort, receiverAddress);
+            } while (!userInput.equals(QUIT_COMMAND));
+        } catch (UnknownHostException e) {
+            exitWithError("Error creating DatagramSender - Unknown host", e);
+        } catch (IOException e) {
+            exitWithError("Error creating DatagramSender", e);
+        } catch (NoSuchAlgorithmException e) {
+            exitWithError("Unable to generate initial sequence number", e);
         }
     }
 
@@ -116,7 +119,7 @@ public class Main {
      * @param exception - exception that caused the error.
      */
     private static void exitWithError(String message, Exception exception) {
-        System.err.println(message + ": " + exception.getMessage());
+        logger.error(message + ": " + exception.getMessage());
         exit(1);
     }
 
