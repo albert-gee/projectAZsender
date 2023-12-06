@@ -15,7 +15,10 @@ public class AZRP {
     // 20 bytes total
     public static final int PACKET_HEADER_SIZE_IN_BYTES = 19;
 
-    public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 30;
+    public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 1000;
+
+    // The data field of the SYN packet contains the file extension
+    public static final int FILE_EXTENSION_LENGTH = 3;
 
     // The flags are used to indicate the type of the packet:
     // 0 - SYN
@@ -49,7 +52,7 @@ public class AZRP {
                 data,
                 sequenceNumber,
                 length,
-                (data.length > 0) ? calculateChecksum(data) : 0,
+                (data.length > 0) ? calculateChecksum(new byte[FILE_EXTENSION_LENGTH]) : 0,
                 flags);
     }
 
@@ -79,7 +82,7 @@ public class AZRP {
         int sequenceNumber = buffer.getInt();
         int length = buffer.getInt();
         int checksum = buffer.getInt();
-        byte[] payload = new byte[flagsInt == 0 ? length : 0]; // Set payload length to 0 if it's a SYN packet
+        byte[] payload = new byte[flagsInt == 0 ? length : FILE_EXTENSION_LENGTH]; // Set payload length to 0 if it's a SYN packet
         buffer.get(payload);
 
         // Convert the flags integer to an array of booleans
@@ -128,16 +131,16 @@ public class AZRP {
         return (int) crc32.getValue();
     }
 
-    public static AZRP generateSynPacket(final int wholeMessageDataLength) throws NoSuchAlgorithmException {
+    public static AZRP generateSynPacket(final int wholeMessageDataLength, byte[] fileType) throws NoSuchAlgorithmException {
         final int initialSequenceNumber = AZRP.generateInitialSequenceNumber(); // The sequence starts from this number
         final boolean[] synFlags = new boolean[]{true, false}; // SYN, ACK
 
-        return new AZRP(new byte[0], initialSequenceNumber, wholeMessageDataLength, synFlags);
+        return new AZRP(fileType, initialSequenceNumber, wholeMessageDataLength, synFlags);
     }
 
     public static AZRP generateSynAckPacket(final AZRP synPacket) {
         final boolean[] synAckFlags = new boolean[]{true, true}; // SYN, ACK
-        return new AZRP(new byte[0], synPacket.getSequenceNumber(), synPacket.getLength(), synAckFlags);
+        return new AZRP(synPacket.getData(), synPacket.getSequenceNumber(), synPacket.getLength(), synAckFlags);
     }
 
     /**
@@ -200,6 +203,10 @@ public class AZRP {
      */
     public byte[] getData() {
         return data;
+    }
+
+    public int getCheckSum() {
+        return checksum;
     }
 
     public boolean isSYN() {

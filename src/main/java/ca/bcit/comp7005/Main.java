@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 
@@ -74,10 +77,19 @@ public class Main {
                     System.out.println("\nEnter a message to send or \"" + QUIT_COMMAND + "\" to quit: ");
                     userInputMessage = sc.nextLine();
                     byte[] userInputMessageBytes = userInputMessage.getBytes();
-                    logger.debug("Sending message (" + userInputMessageBytes.length + " bytes): " + userInputMessage);
+                    sender.sendMessage(userInputMessageBytes, "tex".getBytes());
 
-                    // Send the message to the receiver
-                    sender.sendMessage(userInputMessageBytes);
+//                    // Send file
+//                    String filePath = "/home/albert/Downloads/nicomachaen.mb.txt"; // Replace with the actual path to your file
+//
+//                    try {
+//                        Path path = Paths.get(filePath);
+//                        byte[] fileBytes = Files.readAllBytes(path);
+//                        sender.sendMessage(fileBytes, "txt".getBytes());
+//
+//                    } catch (IOException e) {
+//                        e.printStackTrace();
+//                    }
                 } while (!userInputMessage.equals(QUIT_COMMAND));
 
             }

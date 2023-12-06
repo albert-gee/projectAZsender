@@ -43,11 +43,12 @@ public class Sender {
      * 3. Split the message into AZRP data packets and send them to the receiver one by one.
      * 4. Wait for an ACK packet from the receiver for each AZRP data packet. If the receiver did not respond with the ACK packet, exit the program.
      * @param wholeMessageData - the message to send.
+     * @param fileType - the file type of the message.
      * @throws IOException - if an I/O error occurs.
      */
-    public void sendMessage(byte[] wholeMessageData) throws IOException, NoSuchAlgorithmException {
+    public void sendMessage(byte[] wholeMessageData, byte[] fileType) throws IOException, NoSuchAlgorithmException {
 
-        AZRP synAckAzrp = this.synchronise(wholeMessageData.length);
+        AZRP synAckAzrp = this.sendConnectionRequest(wholeMessageData.length, fileType);
 
         // If the receiver responded with a SYN-ACK packet, send the data packets
         if (synAckAzrp != null) {
@@ -67,7 +68,7 @@ public class Sender {
                 }
             }
 
-            logger.info("Sent message: " + new String(wholeMessageData));
+//            logger.info("Sent message: " + new String(wholeMessageData));
         } else {
             // If the receiver did not respond to the SYN packet, exit the program
             logger.error("The receiver did not respond to the SYN packet");
@@ -75,10 +76,10 @@ public class Sender {
     }
 
 
-    private AZRP synchronise(int wholeMessageLength) throws NoSuchAlgorithmException {
+    private AZRP sendConnectionRequest(int wholeMessageLength, byte[] fileType) throws NoSuchAlgorithmException {
 
         // Generate a SYN packet and send to the receiver
-        final AZRP synAzrp = AZRP.generateSynPacket(wholeMessageLength);
+        final AZRP synAzrp = AZRP.generateSynPacket(wholeMessageLength, fileType);
 
         // Make MAX_RESEND_ATTEMPTS of attempts to send a SYN packet and receive a SYN-ACK packet
         AZRP synAckAzrp = null;
@@ -125,14 +126,14 @@ public class Sender {
             try {
                 // Try to send a datagram packet containing the dataAzrp
                 this.sendDatagram(azrpPacket.toBytes());
-                logger.debug("Sent an AZRP data packet at " + azrpPacket.getSequenceNumber() + ": " + new String(azrpPacket.getData()));
+                logger.debug("Sent an AZRP data packet at " + azrpPacket.getSequenceNumber());
 
                 // Try to receive an ACK packet
                 // Receive a datagram packet
                 DatagramPacket receiveDatagram = receiveDatagram();
                 // Validate that the AZRP packet in the datagram is an ACK packet with the correct sequence number
                 AZRP receivedAzrp = AZRP.fromBytes(receiveDatagram.getData());
-                if (receivedAzrp.isACK() && receivedAzrp.getSequenceNumber() == (azrpPacket.getSequenceNumber() + azrpPacket.getData().length) && receivedAzrp.isChecksumValid()) {
+                if (receivedAzrp.isACK() && receivedAzrp.getSequenceNumber() == (azrpPacket.getSequenceNumber() + azrpPacket.getData().length)) {
                     ackAzrp = receivedAzrp;
                     break;
                 } else {
@@ -190,8 +191,6 @@ public class Sender {
             AZRP dataAzrp = new AZRP(wholeMessageData, initialSequenceNumber, wholeMessageData.length, dataFlags);
             buffer.add(dataAzrp);
         }
-        System.out.println("Converted the message to the following packets:");
-        System.out.println(buffer);
         return buffer;
     }
 
