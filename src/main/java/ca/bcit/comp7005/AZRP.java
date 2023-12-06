@@ -18,7 +18,7 @@ public class AZRP {
     public static final int MAXIMUM_PACKET_SIZE_IN_BYTES = 1500;
 
     // The data field of the SYN packet contains the file extension
-    public static final int FILE_EXTENSION_LENGTH = 10;
+    public static final int FILE_EXTENSION_LENGTH = 20;
 
     // The flags are used to indicate the type of the packet:
     // 0 - SYN
