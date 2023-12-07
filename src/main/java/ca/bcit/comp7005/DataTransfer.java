@@ -23,6 +23,10 @@ public class DataTransfer {
     private final InetAddress receiverAddress;
     private final int maxResendAttempts;
 
+    // The following properties are used for statistics:
+    private int packetsSent;
+    private int packetsReceived;
+
     public DataTransfer(DatagramSocket datagramSocket, InetAddress receiverAddress, int receiverPort, int maxResendAttempts) {
         this.datagramSocket = datagramSocket;
         this.receiverAddress = receiverAddress;
@@ -40,15 +44,20 @@ public class DataTransfer {
      * @param wholeMessageData - the message to send.
      * @param fileType         - the file type.
      */
-    public void send(byte[] wholeMessageData, String fileType)  {
+    public void send(byte[] wholeMessageData, String fileType) throws NoSuchAlgorithmException {
 
         // Try to send a datagram containing the SYN packet and wait for a SYN-ACK packet
         AZRP synAckAzrp = null;
         int attempts = 0;
+        final AZRP synAzrp = AZRP.generateSynPacket(wholeMessageData.length, fileType);
+
         while (attempts < this.maxResendAttempts) {
             try {
-                // Send a SYN packet
-                AZRP synAzrp = this.sendSyn(wholeMessageData.length, fileType);
+
+                // Generate a SYN packet and send to the receiver
+                this.sendDatagram(synAzrp.toBytes());
+                logger.debug("Sent a SYN packet with sequence number " + synAzrp.getSequenceNumber() + " and length " + synAzrp.getLength());
+
                 // Wait for a SYN-ACK packet
                 synAckAzrp = this.receiveSynAck(synAzrp);
 
@@ -60,9 +69,8 @@ public class DataTransfer {
                 logger.debug("Timeout for acknowledgement packet reached");
             } catch (IOException e) {
                 logger.debug("Error while sending a packet");
-            } catch (NoSuchAlgorithmException e) {
-                logger.debug("Error while calculating the checksum");
             }
+
             attempts++;
         }
 
@@ -73,23 +81,6 @@ public class DataTransfer {
             // If the receiver did not respond with a SYN-ACK packet, exit the program
             logger.error("The receiver did not respond to the SYN packet");
         }
-    }
-
-    /**
-     * Sends a SYN packet to the receiver and waits for a SYN-ACK packet.
-     *
-     * @param wholeMessageLength - the length of the whole message.
-     * @param fileType           - the file type.
-     * @return the SYN-ACK packet.
-     * @throws NoSuchAlgorithmException - if the CRC32 algorithm is not available.
-     */
-    private AZRP sendSyn(int wholeMessageLength, String fileType) throws NoSuchAlgorithmException, IOException {
-
-        // Generate a SYN packet and send to the receiver
-        final AZRP synAzrp = AZRP.generateSynPacket(wholeMessageLength, fileType);
-        this.sendDatagram(synAzrp.toBytes());
-        logger.debug("Sent a SYN packet with sequence number " + synAzrp.getSequenceNumber() + " and length " + synAzrp.getLength());
-        return synAzrp;
     }
 
     /**
@@ -241,6 +232,9 @@ public class DataTransfer {
         byte[] packetBuffer = new byte[AZRP.MAXIMUM_PACKET_SIZE_IN_BYTES];
         DatagramPacket packet = new DatagramPacket(packetBuffer, packetBuffer.length);
         this.datagramSocket.receive(packet);
+
+        this.packetsReceived++;
+
         return packet;
     }
 
@@ -255,5 +249,11 @@ public class DataTransfer {
                 data, data.length, this.receiverAddress, this.receiverPort
         );
         datagramSocket.send(packet);
+
+        this.packetsSent++;
+    }
+
+    public String getStatistics() {
+        return "Packets sent: " + this.packetsSent + "; packets received: " + this.packetsReceived;
     }
 }

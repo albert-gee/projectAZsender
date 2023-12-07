@@ -3,12 +3,16 @@ package ca.bcit.comp7005;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * This class sends user input to a receiver.
@@ -23,6 +27,8 @@ public class Sender {
     private final DatagramSocket datagramSocket;
 
     private final int maxResendAttempts;
+
+    private static final String logFilePath = "log.txt";
 
     /**
      * @throws SocketException - if the socket could not be opened.
@@ -65,6 +71,8 @@ public class Sender {
         }
 
         dataTransfer.send(wholeMessageData, fileType);
+
+        this.writeStatistics(dataTransfer.getStatistics());
     }
 
     /**
@@ -82,6 +90,29 @@ public class Sender {
             return fileType;
         } else {
             throw new IOException("The file type could not be determined");
+        }
+    }
+
+    /**
+     * Writes the statistics to the log file.
+     * The entry in the log file contains the number of sent and received packets
+     * @param line - the statistics to write.
+     */
+    private void writeStatistics(String line) {
+        // Get the current timestamp for the log entry
+        LocalDateTime currentTime = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String timestamp = currentTime.format(formatter);
+
+        // Append the log message with timestamp
+        String logEntry = timestamp + " - " + line;
+
+        // Write the log entry to the file
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFilePath, true))) {
+            writer.write(logEntry);
+            writer.newLine(); // Add a newline for the next entry
+        } catch (IOException e) {
+            System.err.println("Error writing to the log file: " + e.getMessage());
         }
     }
 }

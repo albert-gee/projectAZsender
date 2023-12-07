@@ -26,8 +26,8 @@ public class Main {
     private static final Option HELP_OPTION;
     private static final Option RECEIVER_PORT_OPTION;
 
-    private static final int MAX_RESEND_ATTEMPTS = 3;
-    private static final int SENDER_PORT = 56723;
+    private static final int MAX_RESEND_ATTEMPTS = 10;
+    private static final int SENDER_PORT = 60001;
     private static final int TIMEOUT_MILLISECONDS = 5000;
 
 
