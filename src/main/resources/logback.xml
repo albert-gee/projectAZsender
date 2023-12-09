@@ -1,14 +1,17 @@
 <!-- logback.xml -->
 <configuration>
-    <!-- Console Appender -->
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%date{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+
+    <!-- Add a console appender with colored output -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <!-- Define your log format with colors -->
+            <pattern>%cyan(%d{HH:mm:ss.SSS}) %highlight(%-5level) %cyan(%logger{15}) - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Set the root logger level and add the STDOUT appender -->
+    <!-- Set the root logger to use the console appender -->
     <root level="debug">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="CONSOLE"/>
     </root>
+
 </configuration>

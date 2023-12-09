@@ -293,8 +293,6 @@ public class DataTransfer {
         return sentPackets;
     }
 
-
-
     private List<List<AZRP>> bufferToWindows(List<AZRP> buffer) {
         int windowSize = 5;
         List<List<AZRP>> windows = new ArrayList<>();

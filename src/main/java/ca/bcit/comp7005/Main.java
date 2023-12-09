@@ -13,6 +13,7 @@ import static java.lang.System.exit;
 
 /**
  * This program sends messages from command line to a receiver.
+ * -a fe80::8b13:d61f:be86:4856 -p 60001
  */
 public class Main {
 
